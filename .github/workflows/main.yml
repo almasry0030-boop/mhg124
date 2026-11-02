@@ -1,0 +1,61 @@
+
+name: Build ShortDrama APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build web app
+        run: bun run build
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Capacitor
+        run: |
+          bun add @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+
+      - name: Configure Capacitor
+        run: |
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "com.shortdrama.app",
+            "appName": "ShortDrama",
+            "webDir": "dist"
+          }
+          EOF
+
+      - name: Create Android project
+        run: |
+          bunx cap add android
+          bunx cap sync android
+
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShortDrama-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
