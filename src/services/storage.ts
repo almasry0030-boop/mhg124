@@ -70,16 +70,24 @@ function safeSet<T>(key: string, value: T): void {
   }
 }
 
+const DATA_VERSION = 'shortdrama_v3_real_actors_vertical';
+
 export const StorageService = {
   // Initialize seed data if empty
   init() {
-    if (!localStorage.getItem(STORAGE_KEYS.SERIES)) {
+    const curVersion = localStorage.getItem('shortdrama_data_version');
+    if (curVersion !== DATA_VERSION) {
       safeSet(STORAGE_KEYS.SERIES, INITIAL_SERIES);
-    }
-    const storedEpisodes = safeGet<Episode[]>(STORAGE_KEYS.EPISODES, []);
-    const hasOutdatedUrls = storedEpisodes.some((e) => e.videoUrl?.includes('mixkit') || !e.videoUrl);
-    if (!storedEpisodes.length || hasOutdatedUrls) {
       safeSet(STORAGE_KEYS.EPISODES, INITIAL_EPISODES);
+      safeSet(STORAGE_KEYS.CATEGORIES, INITIAL_CATEGORIES);
+      localStorage.setItem('shortdrama_data_version', DATA_VERSION);
+    } else {
+      if (!localStorage.getItem(STORAGE_KEYS.SERIES)) {
+        safeSet(STORAGE_KEYS.SERIES, INITIAL_SERIES);
+      }
+      if (!localStorage.getItem(STORAGE_KEYS.EPISODES)) {
+        safeSet(STORAGE_KEYS.EPISODES, INITIAL_EPISODES);
+      }
     }
     if (!localStorage.getItem(STORAGE_KEYS.CATEGORIES)) {
       safeSet(STORAGE_KEYS.CATEGORIES, INITIAL_CATEGORIES);
@@ -160,8 +168,9 @@ export const StorageService = {
       name,
       email,
       phone,
-      avatar: `https://images.unsplash.com/photo-${1535713875000 + (Date.now() % 1000)}?w=160`,
+      avatar: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=160`,
       role: 'user',
+      isAdmin: false,
       coins: 50, // Welcome bonus!
       vipLevel: 'free',
       createdAt: new Date().toISOString(),

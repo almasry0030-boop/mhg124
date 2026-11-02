@@ -31,9 +31,31 @@ export const AdminPage: React.FC = () => {
     episodes,
     user,
     settings,
+    setActiveTab,
     refreshData,
     showToast,
   } = useApp();
+
+  // Strict Admin Guard (Requirement 2 & 9)
+  if (!user || user.role !== 'admin' || !user.isAdmin) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center animate-in fade-in">
+        <div className="w-16 h-16 rounded-3xl bg-[#FF2A55]/15 border border-[#FF2A55]/40 flex items-center justify-center text-[#FF2A55] mb-4 shadow-xl shadow-[#FF2A55]/10">
+          <AlertTriangle className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-black text-white mb-2">403 - وصول محظور</h2>
+        <p className="text-xs text-gray-400 max-w-sm mb-6 leading-relaxed">
+          عذراً، لوحة التحكم مخصصة حصرياً لمدير المنصة المعتمد في السحابة. حسابك الحالي لا يمتلك صلاحية الإدارة (isAdmin=false).
+        </p>
+        <button
+          onClick={() => setActiveTab('home')}
+          className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#FF2A55] to-[#FF4E3E] text-white font-bold text-xs shadow-lg shadow-[#FF2A55]/30 cursor-pointer"
+        >
+          العودة للصفحة الرئيسية
+        </button>
+      </div>
+    );
+  }
 
   const [activeAdminTab, setActiveAdminTab] = useState<
     'stats' | 'series' | 'episodes' | 'categories' | 'users' | 'payments' | 'ads' | 'coupons' | 'settings'

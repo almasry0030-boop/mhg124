@@ -22,9 +22,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch, onOpenNotification
     isAdmin,
     activeTab,
     setActiveTab,
+    changeTab,
     unreadNotifCount,
     setAuthModalOpen,
-    switchUserRole,
     logout,
   } = useApp();
 
@@ -107,29 +107,23 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch, onOpenNotification
             )}
           </button>
 
-          {/* Admin Switcher / Mode Badge (hidden text on mobile, icon only) */}
-          <button
-            onClick={() => {
-              if (isAdmin) {
-                setActiveTab(activeTab === 'admin' ? 'home' : 'admin');
-              } else {
-                switchUserRole('admin');
-              }
-            }}
-            className={`flex items-center gap-1 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-              isAdmin
-                ? activeTab === 'admin'
+          {/* Admin Dashboard Entry (Rendered strictly for authenticated admins) */}
+          {isAdmin && (
+            <button
+              onClick={() => changeTab(activeTab === 'admin' ? 'home' : 'admin')}
+              className={`flex items-center gap-1 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                activeTab === 'admin'
                   ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30'
                   : 'bg-purple-950/40 text-purple-300 border-purple-500/40 hover:bg-purple-900/50'
-                : 'bg-gray-800/40 text-gray-400 border-gray-700/40 hover:text-gray-200'
-            }`}
-            title={isAdmin ? 'لوحة التحكم الإدارية' : 'التبديل إلى وضع المدير للتجربة'}
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
-            <span className="hidden md:inline">
-              {isAdmin ? (activeTab === 'admin' ? 'الخروج' : 'الإدارة') : 'مدير'}
-            </span>
-          </button>
+              }`}
+              title="لوحة التحكم الإدارية"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+              <span className="hidden md:inline">
+                {activeTab === 'admin' ? 'الخروج' : 'الإدارة'}
+              </span>
+            </button>
+          )}
 
           {/* User Profile Menu */}
           {user && (
@@ -201,15 +195,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSearch, onOpenNotification
 
                   <div className="my-1 border-t border-white/5" />
 
-                  <button
-                    onClick={() => {
-                      switchUserRole(user.role === 'admin' ? 'user' : 'admin');
-                      setMenuOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-400 hover:text-gray-200 hover:bg-white/5 rounded-xl transition-colors text-right"
-                  >
-                    تبديل الحساب ({user.role === 'admin' ? 'مستخدم عادي' : 'مدير'})
-                  </button>
 
                   <button
                     onClick={() => {

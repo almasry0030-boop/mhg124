@@ -1,0 +1,76 @@
+{
+  "id": "/",
+  "name": "ShortDrama - مسلسلات ودراما قصيرة DramaBox",
+  "short_name": "ShortDrama",
+  "description": "منصة مشاهدة المسلسلات والدراما القصيرة الاحترافية مع مشغل عمودي 9:16، ومحفظة عملات مصرية، وتجربة شبيهة بـ DramaBox.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0B0B0F",
+  "background_color": "#0B0B0F",
+  "dir": "rtl",
+  "lang": "ar",
+  "categories": [
+    "entertainment",
+    "video"
+  ],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "المشاهدة المباشرة",
+      "short_name": "مشاهدة",
+      "description": "انتقل إلى مشغل الدراما العمودي فوراً",
+      "url": "/?tab=watch",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "الأكثر شعبية",
+      "short_name": "شائع",
+      "description": "المسلسلات الأكثر طلباً اليوم",
+      "url": "/?tab=explore",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "شحن المحفظة",
+      "short_name": "العملات",
+      "description": "شحن رصيد العملات الذهبية بالجنيه المصري",
+      "url": "/?tab=profile",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

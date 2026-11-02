@@ -13,17 +13,20 @@ import {
   FileText,
   Bell,
   Sparkles,
-  ChevronLeft
+  ChevronLeft,
+  Smartphone
 } from 'lucide-react';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 export const ProfilePage: React.FC = () => {
+  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const {
     user,
     setAuthModalOpen,
     setActiveTab,
+    changeTab,
     favorites,
     watchHistory,
-    switchUserRole,
     logout,
     settings,
     showToast,
@@ -174,6 +177,29 @@ export const ProfilePage: React.FC = () => {
         </button>
 
         <button
+          onClick={() => {
+            if (isInstalled) {
+              showToast('التطبيق مثبت بالفعل على جهازك بصيغة PWA ✅');
+            } else if (isInstallable) {
+              install();
+            } else if (isIOS) {
+              showToast('على iPhone: اضغط زر المشاركة ثم "إضافة إلى الشاشة الرئيسية"');
+            } else {
+              showToast('يمكنك تثبيت التطبيق من قائمة المتصفح "تثبيت التطبيق"');
+            }
+          }}
+          className="w-full flex items-center justify-between p-4 text-xs font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-colors text-right"
+        >
+          <div className="flex items-center gap-3">
+            <Smartphone className="w-5 h-5 text-[#FF2A55]" />
+            <span>تثبيت تطبيق ShortDrama على هاتفك</span>
+          </div>
+          <span className="text-[11px] font-bold text-[#FF2A55] bg-[#FF2A55]/10 px-2.5 py-1 rounded-lg border border-[#FF2A55]/20">
+            {isInstalled ? 'مثبت ✓' : 'تثبيت الآن'}
+          </span>
+        </button>
+
+        <button
           onClick={() => showToast('الإشعارات مفعلة تلقائياً للتطبيق')}
           className="w-full flex items-center justify-between p-4 text-xs font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-colors text-right"
         >
@@ -206,19 +232,21 @@ export const ProfilePage: React.FC = () => {
           <ChevronLeft className="w-4 h-4 text-gray-400" />
         </button>
 
-        {/* Switch to Admin / User test button */}
-        <button
-          onClick={() => switchUserRole(user.role === 'admin' ? 'user' : 'admin')}
-          className="w-full flex items-center justify-between p-4 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-right"
-        >
-          <div className="flex items-center gap-3">
-            <Settings className="w-5 h-5 text-gray-400" />
-            <span>
-              تبديل حساب التجربة (أنت الآن: {user.role === 'admin' ? 'مدير' : 'مشاهد'})
+        {/* Admin Dashboard Entry (Visible only to verified admins) */}
+        {user.role === 'admin' && user.isAdmin && (
+          <button
+            onClick={() => changeTab('admin')}
+            className="w-full flex items-center justify-between p-4 text-xs font-bold text-amber-300 hover:text-white hover:bg-amber-500/10 transition-colors text-right border-y border-amber-500/20 bg-amber-500/5"
+          >
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="w-5 h-5 text-amber-400" />
+              <span>لوحة تحكم مدير المنصة (Admin Dashboard)</span>
+            </div>
+            <span className="text-[11px] bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-md border border-amber-500/30">
+              دخول ⚙️
             </span>
-          </div>
-          <span className="text-[11px] text-[#FF2A55] font-bold">تبديل</span>
-        </button>
+          </button>
+        )}
 
         {/* Logout */}
         <button

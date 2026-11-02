@@ -51,7 +51,8 @@ export const VerticalPlayer: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isBuffering, setIsBuffering] = useState(false);
   const [hasVideoError, setHasVideoError] = useState(false);
-  // Default to muted true so autoplay succeeds reliably across all mobile browsers
+  // Video playback & control states
+  const [volume, setVolume] = useState<number>(1);
   const [isMuted, setIsMuted] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -78,6 +79,7 @@ export const VerticalPlayer: React.FC = () => {
   const isDragging = useRef<boolean>(false);
   const lastWheelTime = useRef<number>(0);
   const hideControlsTimeout = useRef<number | null>(null);
+  const lastRecordedTimeRef = useRef<number>(0);
 
   // Lock background document scroll while the vertical player is open
   useEffect(() => {
@@ -120,7 +122,7 @@ export const VerticalPlayer: React.FC = () => {
   const seriesEpisodes = useMemo<Episode[]>(() => {
     if (!playingSeriesId) return [];
     return StorageService.getEpisodes(playingSeriesId);
-  }, [playingSeriesId, isPlayerOpen]);
+  }, [playingSeriesId, isPlayerOpen, allSeries]);
 
   // Sync current episode index
   useEffect(() => {
@@ -198,6 +200,7 @@ export const VerticalPlayer: React.FC = () => {
         .then(() => {
           setIsPlaying(true);
           setIsBuffering(false);
+          setHasVideoError(false);
         })
         .catch((err) => {
           console.warn('Playback with audio prevented by browser, falling back to muted:', err);
@@ -207,12 +210,13 @@ export const VerticalPlayer: React.FC = () => {
             .then(() => {
               setIsPlaying(true);
               setIsBuffering(false);
+              setHasVideoError(false);
             })
             .catch((e) => {
-              console.error('Video playback failed:', e);
+              console.warn('Video paused waiting for user gesture:', e);
               setIsPlaying(false);
               setIsBuffering(false);
-              setHasVideoError(true);
+              // Do NOT mark video file as broken when browser simply requires a tap
             });
         });
     }
@@ -274,7 +278,8 @@ export const VerticalPlayer: React.FC = () => {
     setCurrentTime(curr);
     if (dur && !isNaN(dur) && isFinite(dur)) {
       setDuration(dur);
-      if (currentEpisode) {
+      if (currentEpisode && Math.abs(curr - lastRecordedTimeRef.current) >= 4) {
+        lastRecordedTimeRef.current = curr;
         recordWatchProgress(currentEpisode, curr, dur);
       }
     }
@@ -283,6 +288,9 @@ export const VerticalPlayer: React.FC = () => {
   // Video ended -> trigger end screen
   const handleVideoEnded = () => {
     setIsPlaying(false);
+    if (currentEpisode && duration > 0) {
+      recordWatchProgress(currentEpisode, duration, duration);
+    }
     setShowEndScreen(true);
   };
 
@@ -400,18 +408,76 @@ export const VerticalPlayer: React.FC = () => {
       }
     } else {
       // Single tap -> toggle Play/Pause
-      const video = videoRef.current;
-      if (video) {
-        if (video.paused) {
-          video.play().then(() => setIsPlaying(true)).catch(() => {});
-        } else {
-          video.pause();
-          setIsPlaying(false);
-        }
-      }
-      handleUserActivity();
+      togglePlayPause();
     }
     lastTapRef.current = now;
+  };
+
+  // Play / Pause toggle
+  const togglePlayPause = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play().then(() => setIsPlaying(true)).catch((err) => {
+        console.warn('Play interrupted:', err);
+      });
+    } else {
+      video.pause();
+      setIsPlaying(false);
+    }
+    handleUserActivity();
+  };
+
+  // Volume & Mute handlers
+  const handleVolumeChange = (newVol: number) => {
+    setVolume(newVol);
+    if (videoRef.current) {
+      videoRef.current.volume = newVol;
+      if (newVol > 0 && isMuted) {
+        videoRef.current.muted = false;
+        setIsMuted(false);
+      } else if (newVol === 0 && !isMuted) {
+        videoRef.current.muted = true;
+        setIsMuted(true);
+      }
+    }
+    handleUserActivity();
+  };
+
+  const toggleMute = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    if (videoRef.current) {
+      videoRef.current.muted = nextMuted;
+      if (!nextMuted && volume === 0) {
+        setVolume(0.8);
+        videoRef.current.volume = 0.8;
+      }
+    }
+    handleUserActivity();
+  };
+
+  // Seek bar handler
+  const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTime = parseFloat(e.target.value);
+    setCurrentTime(newTime);
+    if (videoRef.current) {
+      videoRef.current.currentTime = newTime;
+    }
+    handleUserActivity();
+  };
+
+  // 10-second skip
+  const handleSkip = (seconds: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!videoRef.current) return;
+    const dur = duration || currentEpisode?.duration || 0;
+    const targetTime = Math.max(0, Math.min(dur, (videoRef.current.currentTime || 0) + seconds));
+    videoRef.current.currentTime = targetTime;
+    setCurrentTime(targetTime);
+    handleUserActivity();
   };
 
   // Like episode
@@ -466,14 +532,18 @@ export const VerticalPlayer: React.FC = () => {
       onMouseMove={handleUserActivity}
     >
       {/* 9:16 Responsive Container (full screen on mobile, phone frame on desktop) */}
-      <div className="relative w-full h-[100dvh] max-h-[100dvh] max-w-[480px] bg-black flex flex-col justify-between overflow-hidden shadow-2xl overscroll-none touch-none">
+      <div
+        className="relative w-full h-[100dvh] max-h-[100dvh] max-w-[480px] aspect-[9/16] bg-black flex flex-col justify-between overflow-hidden shadow-2xl overscroll-none touch-none"
+        style={{ aspectRatio: '9/16' }}
+      >
         {/* Main Video Element */}
         {isUnlocked ? (
           <div
-            className="absolute inset-0 bg-black flex items-center justify-center cursor-pointer overflow-hidden touch-none"
+            className="absolute inset-0 bg-black flex items-center justify-center cursor-pointer overflow-hidden touch-none aspect-[9/16]"
+            style={{ aspectRatio: '9/16' }}
             onClick={handleScreenClick}
           >
-            {/* Real HTML5 Video Player */}
+            {/* Real HTML5 Video Player connected to episode videoUrl */}
             {currentEpisode.videoUrl && !hasVideoError ? (
               <video
                 ref={videoRef}
@@ -491,14 +561,18 @@ export const VerticalPlayer: React.FC = () => {
                 }}
                 onEnded={handleVideoEnded}
                 onError={() => {
-                  console.error('Video error on episode:', currentEpisode.id);
-                  setHasVideoError(true);
+                  const mediaErr = videoRef.current?.error;
+                  console.warn('Video error on episode:', currentEpisode.id, mediaErr);
+                  if (mediaErr && mediaErr.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+                    setHasVideoError(true);
+                  }
                   setIsBuffering(false);
                 }}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover aspect-[9/16]"
+                style={{ aspectRatio: '9/16' }}
               />
             ) : (
-              /* Requirement 9: Explicit message when video is missing or invalid */
+              /* Requirement: Explicit message when video is missing or invalid */
               <div className="absolute inset-0 bg-[#0B0B0F]/95 flex flex-col items-center justify-center p-6 text-center z-20">
                 <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-4">
                   <AlertTriangle className="w-8 h-8" />
@@ -507,7 +581,7 @@ export const VerticalPlayer: React.FC = () => {
                   عذراً، ملف الفيديو غير متاح حالياً لهذه الحلقة
                 </h4>
                 <p className="text-xs text-gray-400 max-w-xs mb-6 leading-relaxed">
-                  لم يتم رفع ملف الفيديو أو أن الرابط غير متوفر. يمكنك الانتقال إلى الحلقة التالية أو تجربة حلقة أخرى.
+                  لم يتم العثور على ملف الفيديو. يمكنك الانتقال إلى الحلقة التالية أو تجربة حلقة أخرى.
                 </p>
                 <div className="flex gap-3">
                   <button
@@ -542,15 +616,28 @@ export const VerticalPlayer: React.FC = () => {
               </div>
             )}
 
+            {/* Center Play Button Overlay when Paused */}
+            {!isPlaying && !isBuffering && !hasVideoError && isUnlocked && !showEndScreen && (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePlayPause();
+                }}
+                className="absolute inset-0 flex items-center justify-center z-25 cursor-pointer touch-auto"
+                aria-label="تشغيل"
+              >
+                <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md border border-white/25 flex items-center justify-center text-white shadow-2xl active:scale-90 transition-transform">
+                  <Play className="w-8 h-8 fill-white ml-0.5 text-white" />
+                </div>
+              </div>
+            )}
+
             {/* Unmute floating banner if started muted for autoplay */}
             {isMuted && isPlaying && !hasVideoError && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (videoRef.current) {
-                    videoRef.current.muted = false;
-                  }
-                  setIsMuted(false);
+                  toggleMute();
                 }}
                 className="absolute top-[calc(4rem+env(safe-area-inset-top,0px))] left-1/2 -translate-x-1/2 z-30 px-3.5 py-1.5 rounded-full bg-black/80 backdrop-blur-md text-white text-xs font-bold border border-white/20 shadow-xl flex items-center gap-1.5 animate-bounce cursor-pointer hover:bg-black touch-auto"
                 title="اضغط لتشغيل الصوت"
@@ -577,11 +664,16 @@ export const VerticalPlayer: React.FC = () => {
 
             {/* Center Play indicator when paused */}
             {!isPlaying && !showEndScreen && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-                <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center border border-white/20">
-                  <Play className="w-8 h-8 fill-white ml-1" />
-                </div>
-              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePlayPause();
+                }}
+                aria-label="تشغيل الفيديو"
+                className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-black/60 backdrop-blur-md text-white flex items-center justify-center border border-white/20 shadow-2xl hover:scale-110 active:scale-95 transition-transform cursor-pointer z-20 pointer-events-auto"
+              >
+                <Play className="w-8 h-8 fill-white ml-0.5" />
+              </button>
             )}
           </div>
         ) : (
@@ -965,7 +1057,7 @@ export const VerticalPlayer: React.FC = () => {
         </div>
 
         {/* Bottom Details Overlay (Series Name, Episode Title, Episode list trigger) */}
-        <div className="absolute bottom-[calc(2.25rem+env(safe-area-inset-bottom,0px))] inset-x-0 z-20 px-4 text-right pointer-events-none">
+        <div className="absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] inset-x-0 z-20 px-4 text-right pointer-events-none">
           <div className="max-w-[75%] pointer-events-auto">
             {/* Series Title & Badges */}
             <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -997,27 +1089,111 @@ export const VerticalPlayer: React.FC = () => {
           </div>
         </div>
 
-        {/* Video Scrubber & Progress Bar */}
-        <div className="absolute bottom-0 inset-x-0 z-30 px-3 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black via-black/80 to-transparent touch-auto">
-          <div className="flex items-center justify-between text-[10px] text-gray-300 font-mono mb-1 px-1">
+        {/* Essential Video Controls (Seek bar, Play/Pause, Volume, 10s skip) */}
+        <div
+          className={`absolute bottom-0 inset-x-0 z-30 px-3 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black via-black/85 to-transparent transition-opacity duration-300 touch-auto ${
+            showControls ? 'opacity-100' : 'opacity-85'
+          }`}
+        >
+          {/* Time Display */}
+          <div className="flex items-center justify-between text-[11px] text-gray-300 font-mono mb-1 px-1">
             <span id="player-current-time">{formatSeconds(currentTime)}</span>
             <span id="player-duration">{formatSeconds(duration || currentEpisode.duration)}</span>
           </div>
-          <div
-            className="relative h-1.5 w-full bg-white/20 rounded-full cursor-pointer overflow-hidden group"
-            onClick={(e) => {
-              if (!videoRef.current || !duration) return;
-              const rect = e.currentTarget.getBoundingClientRect();
-              const clickX = e.clientX - rect.left;
-              const percent = Math.max(0, Math.min(1, clickX / rect.width));
-              videoRef.current.currentTime = percent * duration;
-              setCurrentTime(percent * duration);
-            }}
-          >
-            <div
-              className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-[#FF2A55] to-amber-500 rounded-full transition-all"
-              style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+
+          {/* Interactive Seek Bar */}
+          <div className="relative h-2 w-full flex items-center group cursor-pointer mb-2">
+            {/* Visual Track & Progress Fill */}
+            <div className="absolute inset-x-0 h-1.5 bg-white/20 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#FF2A55] to-amber-500 rounded-full transition-all"
+                style={{
+                  width: `${
+                    (duration || currentEpisode.duration) > 0
+                      ? (currentTime / (duration || currentEpisode.duration)) * 100
+                      : 0
+                  }%`,
+                }}
+              />
+            </div>
+            {/* Range input slider overlaid for accessible drag-seeking & click */}
+            <input
+              type="range"
+              min={0}
+              max={duration || currentEpisode.duration || 100}
+              step={0.1}
+              value={currentTime}
+              onChange={handleSeekChange}
+              aria-label="شريط التقدم"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             />
+          </div>
+
+          {/* Essential Controls Row: Play/Pause, 10s Rewind, Volume (Button + Slider), Speed */}
+          <div className="flex items-center justify-between text-white pt-0.5">
+            {/* Left: Play/Pause & Quick Rewind */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={togglePlayPause}
+                aria-label={isPlaying ? 'إيقاف مؤقت' : 'تشغيل'}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/25 active:scale-90 flex items-center justify-center text-white transition-all cursor-pointer border border-white/10"
+              >
+                {isPlaying ? (
+                  <Pause className="w-4 h-4 fill-white" />
+                ) : (
+                  <Play className="w-4 h-4 fill-white ml-0.5" />
+                )}
+              </button>
+
+              <button
+                onClick={(e) => handleSkip(-10, e)}
+                aria-label="رجوع 10 ثوانٍ"
+                title="رجوع 10 ثوانٍ"
+                className="h-7 px-2 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center gap-1 text-[10px] text-gray-200 transition-all cursor-pointer border border-white/10"
+              >
+                <RotateCcw className="w-3 h-3 text-amber-400" />
+                <span className="font-mono">10s-</span>
+              </button>
+            </div>
+
+            {/* Right: Volume Controls (Button + Range Slider) & Speed */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-black/40 px-2 py-1 rounded-full border border-white/10">
+                <button
+                  onClick={toggleMute}
+                  aria-label={isMuted || volume === 0 ? 'إلغاء كتم الصوت' : 'كتم الصوت'}
+                  className="text-white hover:text-amber-400 transition-colors cursor-pointer"
+                >
+                  {isMuted || volume === 0 ? (
+                    <VolumeX className="w-4 h-4 text-amber-400" />
+                  ) : (
+                    <Volume2 className="w-4 h-4 text-white" />
+                  )}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={isMuted ? 0 : volume}
+                  onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                  aria-label="مستوى الصوت"
+                  className="w-14 sm:w-16 h-1 accent-[#FF2A55] bg-white/20 rounded-full cursor-pointer"
+                />
+              </div>
+
+              {/* Speed indicator button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowSettingsMenu(!showSettingsMenu);
+                }}
+                className="h-7 px-2 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-[10px] font-mono text-gray-200 border border-white/10 cursor-pointer"
+                aria-label="سرعة التشغيل"
+              >
+                {playbackSpeed}x
+              </button>
+            </div>
           </div>
         </div>
 

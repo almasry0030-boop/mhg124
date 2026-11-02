@@ -8,6 +8,7 @@ export interface User {
   phone?: string;
   avatar: string;
   role: UserRole;
+  isAdmin: boolean;
   coins: number;
   vipLevel: VipLevel;
   vipExpiresAt?: string;

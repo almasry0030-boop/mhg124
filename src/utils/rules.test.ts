@@ -16,6 +16,7 @@ const mockUser: User = {
   email: 'ahmed@example.com',
   avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120',
   role: 'user',
+  isAdmin: false,
   coins: 25,
   vipLevel: 'free',
   createdAt: '2025-01-01T00:00:00Z',

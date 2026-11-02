@@ -1,41 +1,53 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { DEFAULT_ADMIN_USER, DEFAULT_TEST_USER } from '../data/seedData';
-import { X, Lock, Mail, User as UserIcon, Phone, Sparkles, ShieldCheck } from 'lucide-react';
+import { X, Lock, Mail, User as UserIcon, Phone, Sparkles, ShieldCheck, Loader2 } from 'lucide-react';
 
 export const AuthModal: React.FC = () => {
-  const { authModalOpen, setAuthModalOpen, login, register, switchUserRole, showToast } = useApp();
+  const { authModalOpen, setAuthModalOpen, login, register, showToast } = useApp();
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(false);
 
   if (!authModalOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (tab === 'login') {
-      const ok = login(email);
-      if (ok) {
-        setAuthModalOpen(false);
+    if (loading) return;
+
+    setLoading(true);
+    try {
+      if (tab === 'login') {
+        const ok = await login(email, password);
+        if (ok) {
+          setAuthModalOpen(false);
+          setEmail('');
+          setPassword('');
+        }
       } else {
-        showToast('لم نجد هذا الحساب، يمكنك إنشاء حساب جديد خلال ثوانٍ!');
-        setTab('register');
+        if (!name.trim() || !email.trim() || !password.trim()) {
+          showToast('يرجى ملء الاسم والبريد الإلكتروني وكلمة المرور');
+          setLoading(false);
+          return;
+        }
+        await register(name, email, phone, password);
+        setAuthModalOpen(false);
+        setName('');
+        setEmail('');
+        setPassword('');
+        setPhone('');
       }
-    } else {
-      if (!name.trim() || !email.trim()) {
-        showToast('يرجى ملء الاسم والبريد الإلكتروني');
-        return;
-      }
-      register(name, email, phone);
-      setAuthModalOpen(false);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleQuickLogin = (role: 'admin' | 'user') => {
-    switchUserRole(role);
-    setAuthModalOpen(false);
+  const fillCredentials = (fillEmail: string) => {
+    setEmail(fillEmail);
+    setPassword(fillEmail.includes('admin') || fillEmail.includes('almasry') ? 'Admin@123456' : 'User@123456');
+    setTab('login');
   };
 
   return (
@@ -163,23 +175,25 @@ export const AuthModal: React.FC = () => {
           </button>
         </form>
 
-        {/* Demo 1-Click Fast Login for easy testing */}
+        {/* Fill credentials helper for testing authenticated server login */}
         <div className="mt-5 pt-4 border-t border-white/10 text-center">
-          <p className="text-[11px] text-gray-400 mb-2">أو الدخول المباشر للتجربة بضغطة واحدة:</p>
+          <p className="text-[11px] text-gray-400 mb-2">تعبئة بيانات الحسابات المعتمدة للتجربة:</p>
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => handleQuickLogin('user')}
+              type="button"
+              onClick={() => fillCredentials('ali@example.com')}
               className="py-2 px-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-gray-200 text-[11px] font-bold transition-colors flex items-center justify-center gap-1.5"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              حساب مستخدم
+              مستخدم عادي
             </button>
             <button
-              onClick={() => handleQuickLogin('admin')}
+              type="button"
+              onClick={() => fillCredentials('almasry0030@gmail.com')}
               className="py-2 px-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/40 text-purple-200 text-[11px] font-bold border border-purple-500/30 transition-colors flex items-center justify-center gap-1.5"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
-              حساب المدير (Admin)
+              حساب المالك (Admin)
             </button>
           </div>
         </div>

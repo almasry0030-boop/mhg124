@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { StorageService } from '../services/storage';
 import { DEFAULT_ADMIN_USER, DEFAULT_TEST_USER } from '../data/seedData';
+import { ApiService } from '../services/api';
 import confetti from 'canvas-confetti';
 
 interface AppContextType {
@@ -41,10 +42,10 @@ interface AppContextType {
   closeSeriesDetails: () => void;
 
   // Actions
-  login: (email: string) => boolean;
-  register: (name: string, email: string, phone?: string) => void;
-  logout: () => void;
-  switchUserRole: (role: 'admin' | 'user') => void;
+  changeTab: (tab: 'home' | 'explore' | 'watch' | 'library' | 'profile' | 'admin' | 'wallet' | 'rewards') => void;
+  login: (email: string, password?: string) => Promise<boolean>;
+  register: (name: string, email: string, phone?: string, password?: string) => Promise<void>;
+  logout: () => Promise<void>;
   toggleFavorite: (seriesId: string) => boolean;
   toggleFollow: (seriesId: string) => boolean;
   isEpisodeUnlocked: (episodeId: string) => boolean;
@@ -114,9 +115,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Check server session on mount
   useEffect(() => {
     StorageService.init();
     refreshData();
+
+    // Verify session with server HttpOnly cookie
+    ApiService.getMe().then((serverUser: User | null) => {
+      if (serverUser) {
+        setUser(serverUser);
+        StorageService.setCurrentUser(serverUser);
+      }
+    }).catch(() => {});
 
     const handleStorageChange = () => {
       refreshData();
@@ -127,7 +137,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' && user?.isAdmin === true;
+
+  const changeTab = (tab: 'home' | 'explore' | 'watch' | 'library' | 'profile' | 'admin' | 'wallet' | 'rewards') => {
+    if (tab === 'admin') {
+      if (!user) {
+        setAuthModalOpen(true);
+        showToast('يرجى تسجيل الدخول أولاً بحساب مدير (Admin)');
+        return;
+      }
+      if (user.role !== 'admin' || !user.isAdmin) {
+        showToast('وصول محظور (403): حسابك لا يمتلك صلاحية الإدارة (isAdmin=false)');
+        return;
+      }
+    }
+    setActiveTab(tab);
+  };
 
   const unreadNotifCount = useMemo(() => {
     return notifications.filter((n) => !n.read).length;
@@ -160,48 +185,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setViewingSeriesId(null);
   };
 
-  const login = (email: string): boolean => {
-    const found = StorageService.login(email);
-    if (found) {
-      setUser(found);
+  const login = async (email: string, password?: string): Promise<boolean> => {
+    const res = await ApiService.login(email, password);
+    if (res.success && res.user) {
+      setUser(res.user);
+      StorageService.setCurrentUser(res.user);
       refreshData();
-      showToast(`أهلاً بك مجدداً يا ${found.name}! 🎬`);
+      showToast(`أهلاً بك يا ${res.user.name}! 🎬`);
       return true;
+    } else {
+      showToast(res.error || 'البريد الإلكتروني أو كلمة المرور غير صحيحة');
+      return false;
     }
-    return false;
   };
 
-  const register = (name: string, email: string, phone?: string) => {
-    const newUser = StorageService.register(name, email, phone);
-    setUser(newUser);
-    refreshData();
-    try {
-      confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-    } catch {}
-    showToast(`تم إنشاء حسابك بنجاح وحصلت على 50 عملة مجانية! 🎁`);
+  const register = async (name: string, email: string, phone?: string, password?: string) => {
+    const res = await ApiService.register(name, email, phone, password);
+    if (res.success && res.user) {
+      setUser(res.user);
+      StorageService.setCurrentUser(res.user);
+      refreshData();
+      try {
+        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+      } catch {}
+      showToast(`تم إنشاء حسابك بنجاح وحصلت على 30 عملة هدية! 🎁`);
+    } else {
+      showToast(res.error || 'فشل إنشاء الحساب');
+    }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await ApiService.logout();
     StorageService.setCurrentUser(null);
     setUser(null);
     refreshData();
     showToast('تم تسجيل الخروج بنجاح');
-  };
-
-  const switchUserRole = (role: 'admin' | 'user') => {
-    const allUsers = StorageService.getAllUsers();
-    if (role === 'admin') {
-      const admin = allUsers.find((u) => u.role === 'admin') || DEFAULT_ADMIN_USER;
-      StorageService.setCurrentUser(admin);
-      setUser(admin);
-      showToast('تم التبديل إلى حساب المدير (Admin)');
-    } else {
-      const normalUser = allUsers.find((u) => u.role === 'user') || DEFAULT_TEST_USER;
-      StorageService.setCurrentUser(normalUser);
-      setUser(normalUser);
-      showToast('تم التبديل إلى حساب المشاهد العادي');
-    }
-    refreshData();
   };
 
   const toggleFavorite = (seriesId: string): boolean => {
@@ -317,10 +335,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         viewingSeriesId,
         openSeriesDetails,
         closeSeriesDetails,
+        changeTab,
         login,
         register,
         logout,
-        switchUserRole,
         toggleFavorite,
         toggleFollow,
         isEpisodeUnlocked,

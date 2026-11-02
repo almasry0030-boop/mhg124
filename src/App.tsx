@@ -13,6 +13,7 @@ import { VerticalPlayer } from './components/VerticalPlayer';
 import { SeriesDetailsPage } from './pages/SeriesDetailsPage';
 import { AuthModal } from './components/AuthModal';
 import { NotificationsModal } from './components/NotificationsModal';
+import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
@@ -62,6 +63,9 @@ const MainLayout: React.FC = () => {
         isOpen={notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
       />
+
+      {/* In-App PWA Install Banner */}
+      <PWAInstallPrompt />
 
       {/* Fixed Bottom Navigation */}
       <BottomNav />
