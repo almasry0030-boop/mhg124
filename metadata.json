@@ -1,0 +1,6 @@
+{
+  "name": "ShortDrama - منصة الدراما القصيرة",
+  "description": "منصة مشاهدة المسلسلات والدراما القصيرة الاحترافية مع مشغل عمودي 9:16، محفظة عملات مصرية، وتجربة شبيهة بـ DramaBox.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
